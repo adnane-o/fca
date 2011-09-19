@@ -8,7 +8,7 @@ object BuildSettings {
   val buildVersion      = "0.0.1"
 
   val buildSettings = Defaults.defaultSettings ++ Seq (organization := buildOrganization,
-						       shellPrompt  := ShellPrompt.buildShellPrompt,
+						       //shellPrompt  := ShellPrompt.buildShellPrompt,
 						       scalaVersion := buildScalaVersion,
 						       version      := buildVersion)
 }
