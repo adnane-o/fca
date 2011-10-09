@@ -267,4 +267,110 @@ object FCA {
   }
 
 
+  class FastLattice (implicit ctx: Context) extends Logging {
+    
+    protected[fca] class ConceptOrdering (implicit ctx: Context) extends Ordering[Concept] {
+      
+      /**
+       * Lectic comparison of two Concepts
+       */
+      def compare (c1: Concept, c2: Concept): Int = {
+        if (c1 == c2) 0
+        else if (c2 ≺ c1) -1 else 1
+      }
+      
+    }
+    
+    implicit val conceptOrdering = new ConceptOrdering ()
+    
+    import scala.collection.immutable.TreeSet
+    
+    /**
+     * Maintain a lectic ordering of all found Concepts.
+     * Note: lectic order is NOT the FCA graph.
+     * Lectic ordering is a total ordering based on attribution.
+     * The FCA lattice is a partial ordering.
+     */
+    class LecticConcepts (bottom: Concept) extends Logging {
+      
+      // private var last = bottom
+      
+      private var cs = {
+        val ts = new TreeSet[Concept] ()
+        ts + bottom
+      }
+      
+      def size (): Int = 
+        cs.size
+      
+      def next (c: Concept): Option[Concept] = {
+        val ns = cs from c        
+        val iter = ns.iterator
+        iter.next       
+        logger.info ("Concepts in queue: " + ns.size)        
+        if (iter.hasNext)
+          Some (iter.next)
+        else None
+      }
+      
+      def + (c: Concept): LecticConcepts = {
+        logger info ("Adding " + c.m)
+        cs += c
+        this
+      }
+      
+    }
+    
+    import scala.collection.mutable.Set
+    import scala.collection.mutable.HashSet
+    
+    def neighbors (c: Concept):  Set[Concept] = {
+      var min: Set[Obj] = ctx.ɢ diff c.g
+      val gs = min
+      var neighbors = HashSet (): HashSet[Concept]
+      
+      for (g <- ctx.ɢ diff c.g) {      
+        val m1 = ctx ɢComp (c.g + g)
+        val g1 = ctx ᴍComp m1
+        if ((min intersect ((g1 diff c.g) - g)).isEmpty) {        
+          neighbors = neighbors + Concept (g1, m1)
+        } else min -= g
+      }
+      
+      neighbors
+    }
+    
+    def genLattice (): DListGraph[Concept, Null] = {
+      
+      logger info ("Generating FCA for context: objects = " + ctx.ɢ.size + " attrs = " +  ctx.ᴍ.size)
+      
+      import annotation.tailrec
+      
+      @tailrec 
+      def generate (concept: Option[Concept], L0: LecticConcepts, lattice: DListGraph[Concept, Null]): DListGraph[Concept, Null] = {
+        if (concept.isDefined)
+	  logger info ("Neighbors for " + concept.get.m)
+        concept match {
+	  case Some (c) => {
+	    val ns = neighbors (c)
+	    ns.foreach (n => logger.info ("N: " + n.m))
+	    val L1 = ns.foldLeft (L0)((l,n) => l + n)
+            for (n <- ns) {
+              lattice + (null, c, n)
+            }
+	    logger info ("Lattice: " + lattice.order)
+	    generate (L1.next (c), L1, lattice)
+	  }
+	  case None => lattice
+        }
+      }
+      
+      val bottom = ctx.bottom
+      generate(Some(bottom), new LecticConcepts (bottom), new DListGraph[Concept,Null]())
+    }
+    
+  }
+
+
+
 }
